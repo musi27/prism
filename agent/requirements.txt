@@ -1,0 +1,5 @@
+langchain>=0.3
+langchain-anthropic>=0.3
+ddgs>=7
+requests>=2.31
+beautifulsoup4>=4.12

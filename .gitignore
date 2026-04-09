@@ -1,0 +1,11 @@
+.DS_Store
+.obsidian/
+__pycache__/
+*.pyc
+venv/
+agent/output.csv
+agent/watched_files/
+logs/
+stitch/
+stitch.zip
+docs/

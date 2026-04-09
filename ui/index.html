@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PRISM_v1.0.4</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "primary": "#6366F1",
+        "background-dark": "#0A0A0A",
+        "surface": "#121212",
+        "surface-hover": "#1A1A1A",
+        "border": "#262626",
+        "text": "#E5E5E5",
+        "muted": "#737373",
+        "success": "#10B981",
+        "warning": "#F59E0B",
+        "error": "#EF4444",
+      },
+      fontFamily: {
+        "display": ["Inter", "sans-serif"],
+        "mono": ["JetBrains Mono", "monospace"],
+      },
+      borderRadius: {"DEFAULT":"0px","lg":"0px","xl":"0px","full":"0px","sm":"0px"},
+    },
+  },
+}
+</script>
+<style>
+body { font-family:'Inter',sans-serif; background:#0A0A0A; color:#E5E5E5; }
+.font-mono { font-family:'JetBrains Mono',monospace; }
+@keyframes pulse-opacity { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.animate-pulse-slow { animation: pulse-opacity 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+details>summary { list-style:none; }
+details>summary::-webkit-details-marker { display:none; }
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:#0A0A0A; }
+::-webkit-scrollbar-thumb { background:#262626; }
+::-webkit-scrollbar-thumb:hover { background:#737373; }
+</style>
+</head>
+<body class="bg-background-dark min-h-screen flex flex-col">
+
+<!-- ═══════════════ GLOBAL HEADER ═══════════════ -->
+<header class="flex h-12 items-center justify-between border-b border-border px-6 sticky top-0 z-10" style="background:#000000">
+  <div class="flex items-center gap-3 w-1/3">
+    <span class="material-symbols-outlined text-primary" style="font-size:20px">polyline</span>
+    <h1 class="font-mono text-sm font-bold text-text uppercase tracking-widest">PRISM_v1.0.4</h1>
+  </div>
+  <nav class="flex flex-1 justify-center gap-8 items-center h-full whitespace-nowrap">
+    <a onclick="switchTab('live');return false" id="tab-live" href="#"
+       class="tab-btn h-full flex items-center border-b-2 border-primary text-text text-xs font-semibold uppercase tracking-[0.05em] px-4 transition-colors duration-150 whitespace-nowrap">LIVE&nbsp;FEED</a>
+    <a onclick="switchTab('agents');return false" id="tab-agents" href="#"
+       class="tab-btn h-full flex items-center border-b-2 border-transparent text-muted hover:text-[#A3A3A3] text-xs font-semibold uppercase tracking-[0.05em] px-4 transition-colors duration-150">AGENTS</a>
+    <a onclick="switchTab('approvals');return false" id="tab-approvals" href="#"
+       class="tab-btn h-full flex items-center border-b-2 border-transparent text-muted hover:text-[#A3A3A3] text-xs font-semibold uppercase tracking-[0.05em] px-4 transition-colors duration-150 whitespace-nowrap">PENDING&nbsp;APPROVALS
+       <span id="approval-badge" class="hidden ml-2 px-1.5 py-0.5 text-[10px] bg-warning text-[#0A0A0A] font-bold"></span></a>
+  </nav>
+  <div class="flex items-center justify-end w-1/3">
+    <div id="connection-status" class="flex items-center gap-2 text-success font-mono text-[11px] font-medium">
+      <span class="animate-pulse-slow">(●)</span><span>CONNECTED</span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════ VIEWS ═══════════════ -->
+
+<!-- TAB 1: LIVE FEED -->
+<div id="view-live" class="flex-1">
+  <main class="w-full max-w-7xl mx-auto px-6 py-6">
+    <div id="live-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    <div id="live-drawer"></div>
+    <div id="live-empty" class="flex flex-col items-center justify-center min-h-[400px]">
+      <p class="font-mono text-[24px] text-muted mb-2">[___/ ]</p>
+      <p class="font-mono text-[14px] text-muted">NO_AGENTS_RUNNING</p>
+    </div>
+  </main>
+</div>
+
+<!-- TAB 2: AGENTS -->
+<div id="view-agents" class="flex-1 hidden">
+  <!-- Grid -->
+  <main id="agents-grid-view" class="w-full max-w-[1200px] mx-auto p-6">
+    <div id="agent-tiles" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    <p id="agents-empty" class="font-mono text-[14px] text-muted text-center py-16 hidden">NO_AGENTS_RECORDED</p>
+  </main>
+  <!-- Run List -->
+  <main id="run-list-view" class="flex-1 w-full flex flex-col items-center pt-8 pb-16 px-4 hidden">
+    <div class="w-full max-w-[800px] flex flex-col gap-6">
+      <button onclick="backToAgents()" class="self-start flex items-center gap-2 text-muted hover:text-text transition-colors text-[13px] font-medium uppercase tracking-wide">
+        <span class="material-symbols-outlined" style="font-size:16px">arrow_back</span> Back to Agents
+      </button>
+      <div class="flex justify-between items-end border-b border-border pb-4">
+        <div class="flex items-center gap-3">
+          <div id="rl-avatar" class="w-8 h-8 border border-border bg-surface flex items-center justify-center text-lg font-bold font-mono"></div>
+          <h1 id="rl-title" class="text-[20px] font-semibold text-text m-0 leading-tight"></h1>
+        </div>
+        <span id="rl-total" class="text-muted text-sm font-medium"></span>
+      </div>
+      <div id="run-rows" class="flex flex-col w-full border border-border"></div>
+      <div id="rl-load-more" class="flex justify-center mt-4 hidden">
+        <button onclick="loadMoreRuns()" class="px-4 py-2 border border-border bg-transparent text-muted hover:text-text hover:bg-surface text-[13px] font-medium uppercase tracking-wide">LOAD MORE</button>
+      </div>
+    </div>
+  </main>
+  <!-- Run Detail -->
+  <main id="run-detail-view" class="flex-1 w-full flex flex-col items-center pt-8 pb-12 px-4 hidden">
+    <div class="w-full max-w-[800px] flex flex-col gap-6">
+      <button onclick="backToRunList()" class="self-start inline-flex items-center gap-2 text-muted hover:text-text transition-colors text-xs font-medium tracking-wider uppercase">
+        <span class="material-symbols-outlined" style="font-size:16px">arrow_back</span>
+        <span id="rd-breadcrumb"></span>
+      </button>
+      <div id="rd-coverage"></div>
+      <div id="rd-warnings" class="hidden"></div>
+      <div id="rd-entries" class="flex flex-col gap-3"></div>
+      <div id="rd-load-more" class="flex justify-center mt-4 hidden">
+        <button onclick="loadMoreEntries()" class="px-4 py-2 border border-border bg-transparent text-muted hover:text-text hover:bg-surface text-[13px] font-medium uppercase tracking-wide">LOAD MORE</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- TAB 3: PENDING APPROVALS -->
+<div id="view-approvals" class="flex-1 hidden">
+  <main class="w-full max-w-[800px] mx-auto px-6 py-6">
+    <div id="approval-list" class="flex flex-col gap-4"></div>
+    <p id="approvals-empty" class="font-mono text-[14px] text-muted text-center py-16">NO_PENDING_APPROVALS</p>
+    <div id="approval-history-section" class="hidden mt-8">
+      <h3 class="font-mono text-[11px] font-bold text-muted uppercase tracking-widest mb-4">DECISION_HISTORY</h3>
+      <div id="approval-history" class="flex flex-col border border-border"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let currentTab = 'live';
+let liveRuns = {};
+let expandedLiveTile = null;
+let approvals = [];
+let currentAgentId = null;
+let currentAgentData = null;
+let currentRunId = null;
+let currentRunPage = 1;
+let hasMorePages = false;
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function snakeCase(s) { return (s||'').replace(/[\s-]+/g,'_').toUpperCase(); }
+function initials(s) {
+  const parts = snakeCase(s).split('_').filter(Boolean);
+  if (parts.length >= 2) return parts[0][0] + parts[1][0];
+  return (s||'X')[0].toUpperCase();
+}
+function pad4(n) { return String(n).padStart(4,'0'); }
+function fmtDur(ms) { return ms < 1000 ? Math.round(ms)+'ms' : (ms/1000).toFixed(1)+'s'; }
+function fmtTime(iso) { if(!iso)return''; try{return new Date(iso).toLocaleTimeString()}catch{return iso} }
+function fmtRelative(iso) {
+  if(!iso)return'';
+  const diff = Date.now() - new Date(iso).getTime();
+  const s=diff/1000, m=s/60, h=m/60, d=h/24;
+  if(d>=1) return Math.floor(d)+'d ago';
+  if(h>=1) return Math.floor(h)+'h ago';
+  if(m>=1) return Math.floor(m)+'m ago';
+  return Math.floor(s)+'s ago';
+}
+function coverageBar(pct) {
+  const filled = Math.round((pct||0)/10);
+  const bar = '█'.repeat(filled) + '░'.repeat(10-filled);
+  return bar;
+}
+function coverageColor(pct) {
+  if(pct>=80) return 'success';
+  if(pct>=50) return 'warning';
+  return 'error';
+}
+function glowDot(color) {
+  const rgb = color==='success'?'16,185,129':color==='warning'?'245,158,11':'239,68,68';
+  return `<div class="w-1.5 h-1.5 rounded-full bg-${color}" style="box-shadow:0 0 8px rgba(${rgb},0.4)"></div>`;
+}
+function toolArgs(entry) {
+  const inp = entry.inputs||{};
+  const args = Object.values(inp).map(v => typeof v==='string'? (v.length>30?'"'+v.substring(0,30)+'..."':'"'+v+'"') : JSON.stringify(v)).join(', ');
+  return args;
+}
+
+// ═══════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('border-primary','text-text');
+    b.classList.add('border-transparent','text-muted');
+  });
+  const btn = document.getElementById('tab-'+tab);
+  btn.classList.add('border-primary','text-text');
+  btn.classList.remove('border-transparent','text-muted');
+  document.getElementById('view-live').classList.toggle('hidden', tab!=='live');
+  document.getElementById('view-agents').classList.toggle('hidden', tab!=='agents');
+  document.getElementById('view-approvals').classList.toggle('hidden', tab!=='approvals');
+  if(tab==='agents') { showAgentsGrid(); loadAgents(); }
+  if(tab==='approvals') loadApprovals();
+}
+
+// ═══════════════════════════════════════
+// TAB 1: LIVE FEED
+// ═══════════════════════════════════════
+function renderLiveFeed() {
+  const grid = document.getElementById('live-grid');
+  const drawer = document.getElementById('live-drawer');
+  const empty = document.getElementById('live-empty');
+
+  const agents = {};
+  for (const [rid, run] of Object.entries(liveRuns)) {
+    const aid = run.agent_id;
+    if(!agents[aid]) agents[aid] = {status:'idle', tool_count:0, entries:[], runIds:[], coverage_pct:null};
+    if(run.status==='active') agents[aid].status='active';
+    else if(run.status==='idle' && agents[aid].status!=='active') agents[aid].status='idle';
+    else if(run.status==='complete' && agents[aid].status!=='active' && agents[aid].status!=='idle') agents[aid].status='complete';
+    agents[aid].tool_count += run.tool_count || run.entries.length;
+    agents[aid].entries.push(...run.entries);
+    agents[aid].runIds.push(rid);
+  }
+
+  const ids = Object.keys(agents);
+  if(ids.length===0) { empty.classList.remove('hidden'); grid.innerHTML=''; drawer.innerHTML=''; return; }
+  empty.classList.add('hidden');
+
+  let tilesHtml = '';
+  ids.forEach(aid => {
+    const a = agents[aid];
+    const name = snakeCase(aid);
+    const ini = initials(aid);
+    const isFailed = a.status==='complete' && a.entries.some(e=>e.status==='failure');
+    const isError = isFailed;
+    const borderClass = isError ? 'border-error' : 'border-border';
+    const avatarBg = isError ? 'bg-error' : 'bg-primary';
+
+    let statusHtml;
+    if(isError) statusHtml = `<div class="flex items-center gap-1 text-error font-mono text-[11px]"><span>x</span><span>FAILED</span></div>`;
+    else if(a.status==='active') statusHtml = `<div class="flex items-center gap-1 text-success font-mono text-[11px]"><span class="animate-pulse-slow">●</span><span>ACTIVE</span></div>`;
+    else if(a.status==='idle') statusHtml = `<div class="flex items-center gap-1 text-warning font-mono text-[11px]"><span>○</span><span>IDLE</span></div>`;
+    else statusHtml = `<div class="flex items-center gap-1 text-muted font-mono text-[11px]"><span>○</span><span>COMPLETE</span></div>`;
+
+    const pct = a.coverage_pct;
+    const barColor = isError ? 'bg-error' : 'bg-success';
+    const pctColor = isError ? 'text-error' : 'text-success';
+    const barWidth = pct != null ? pct : (a.entries.length > 0 ? 100 : 0);
+
+    tilesHtml += `
+      <div onclick="toggleLiveDrawer('${aid}')" class="group relative flex flex-col bg-surface border ${borderClass} min-h-[120px] p-4 cursor-pointer hover:border-primary transition-colors duration-150">
+        <div class="flex justify-between items-start mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-6 h-6 ${avatarBg} text-[#0A0A0A] flex items-center justify-center font-mono font-bold text-xs uppercase">${ini}</div>
+            <h3 class="font-mono text-[14px] font-bold text-text">${name}</h3>
+          </div>
+          ${statusHtml}
+        </div>
+        <div class="mt-auto">
+          <p class="font-mono text-[13px] text-text mb-4">${pad4(a.tool_count)} CALLS_</p>
+        </div>
+        <div class="absolute bottom-0 left-0 w-full h-[2px] bg-border flex">
+          <div class="h-full ${barColor}" style="width:${barWidth}%"></div>
+          ${pct!=null ? `<div class="absolute bottom-1 right-2 font-mono text-[11px] ${pctColor}">${pct}%</div>` : ''}
+        </div>
+      </div>`;
+  });
+  grid.innerHTML = tilesHtml;
+
+  // Render drawer if expanded
+  if(expandedLiveTile && agents[expandedLiveTile]) {
+    const a = agents[expandedLiveTile];
+    const name = snakeCase(expandedLiveTile);
+    const last50 = a.entries.slice(-50);
+    const ini = initials(expandedLiveTile);
+
+    let logsHtml = last50.map((e,i) => {
+      const isErr = e.status==='failure';
+      const dotColor = isErr ? 'text-error' : 'text-success';
+      const nameColor = isErr ? 'text-error' : 'text-text';
+      const durColor = isErr ? 'text-error' : 'text-muted';
+      const summaryBg = isErr ? 'bg-[#1a0f0f]' : '';
+      const expandBorder = isErr ? 'border-l-2 border-l-error text-error' : 'border-l-2 border-l-primary';
+      const idx = `[${String(i+1).padStart(3,'0')}]`;
+      const json = JSON.stringify({inputs:e.inputs, outputs:e.outputs, status:e.status, error:e.error||undefined}, null, 2);
+
+      return `<details class="flex flex-col group">
+        <summary class="flex cursor-pointer items-center justify-between py-1.5 px-2 hover:bg-surface-hover border-l border-transparent hover:border-border transition-colors duration-100 ${summaryBg}">
+          <div class="flex items-center gap-3 text-[13px]">
+            <span class="text-muted w-10">${idx}</span>
+            <span class="${dotColor} text-[10px]">●</span>
+            <span class="${nameColor} font-medium">${e.tool_name}()</span>
+          </div>
+          <div class="flex items-center gap-4 text-[13px] ${durColor}">
+            <span>${fmtDur(e.duration_ms)}</span>
+            <span class="material-symbols-outlined text-[16px] group-open:rotate-180 transition-transform duration-100">keyboard_arrow_down</span>
+          </div>
+        </summary>
+        <div class="ml-14 mt-1 mb-3 bg-surface border border-border p-3 text-[12px] text-text overflow-x-auto whitespace-pre ${expandBorder}">${json}</div>
+      </details>`;
+    }).join('');
+
+    drawer.innerHTML = `
+      <div class="col-span-full bg-[#0A0A0A] border-l border-primary border-r border-b border-border p-4 mt-[-4px]">
+        <div class="flex items-center gap-2 mb-4 text-primary text-xs font-medium">
+          <span class="material-symbols-outlined text-[16px]">terminal</span>
+          <p>> TAIL_LOGS: ${name}</p>
+        </div>
+        <div class="flex flex-col gap-1 max-h-[400px] overflow-y-auto pr-2">
+          ${logsHtml}
+          <div class="flex items-center gap-3 py-1.5 px-2 text-[13px] text-muted mt-2">
+            <span class="w-10 text-right">></span>
+            <span class="animate-pulse">fetching_logs..._</span>
+          </div>
+        </div>
+      </div>`;
+  } else {
+    drawer.innerHTML = '';
+  }
+}
+
+function toggleLiveDrawer(aid) {
+  expandedLiveTile = expandedLiveTile === aid ? null : aid;
+  renderLiveFeed();
+}
+
+function startSSE() {
+  const statusEl = document.getElementById('connection-status');
+  const evtSource = new EventSource('/api/live');
+
+  evtSource.onopen = () => {
+    statusEl.innerHTML = '<span class="animate-pulse-slow">(●)</span><span>CONNECTED</span>';
+    statusEl.className = 'flex items-center gap-2 text-success font-mono text-[11px] font-medium';
+    liveRuns = {}; expandedLiveTile = null; renderLiveFeed();
+  };
+
+  evtSource.onmessage = (e) => {
+    try {
+      const entry = JSON.parse(e.data);
+      const rid = entry.run_id;
+      if(!liveRuns[rid]) liveRuns[rid] = {agent_id:entry.agent_id, entries:[], status:'active', tool_count:0, missing_tools:[]};
+      liveRuns[rid].entries.push(entry);
+      liveRuns[rid].tool_count = liveRuns[rid].entries.length;
+      liveRuns[rid].status = 'active';
+      renderLiveFeed();
+    } catch{}
+  };
+
+  evtSource.addEventListener('heartbeat', (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      const rid = d.run_id;
+      if(!liveRuns[rid]) liveRuns[rid] = {agent_id:d.agent_id, entries:[], status:d.status, tool_count:d.tool_count||0, missing_tools:d.missing_tools||[]};
+      else { liveRuns[rid].status=d.status; liveRuns[rid].tool_count=Math.max(liveRuns[rid].entries.length, d.tool_count||0); }
+      renderLiveFeed();
+    } catch{}
+  });
+
+  evtSource.addEventListener('run_complete', (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      if(liveRuns[d.run_id]) {
+        liveRuns[d.run_id].status = 'complete';
+        renderLiveFeed();
+        setTimeout(() => { delete liveRuns[d.run_id]; if(expandedLiveTile) { const aids = Object.values(liveRuns).map(r=>r.agent_id); if(!aids.includes(expandedLiveTile)) expandedLiveTile=null; } renderLiveFeed(); }, 5000);
+      }
+    } catch{}
+  });
+
+  evtSource.addEventListener('approval_request', (e) => {
+    try { const d=JSON.parse(e.data); approvals.push(d); updateApprovalBadge(); if(currentTab==='approvals') renderApprovals(); } catch{}
+  });
+
+  evtSource.onerror = () => {
+    statusEl.innerHTML = '<span>(●)</span><span>DISCONNECTED</span>';
+    statusEl.className = 'flex items-center gap-2 text-error font-mono text-[11px] font-medium';
+  };
+}
+
+// ═══════════════════════════════════════
+// TAB 2: AGENTS
+// ═══════════════════════════════════════
+function showAgentsGrid() {
+  document.getElementById('agents-grid-view').classList.remove('hidden');
+  document.getElementById('run-list-view').classList.add('hidden');
+  document.getElementById('run-detail-view').classList.add('hidden');
+}
+
+async function loadAgents() {
+  const res = await fetch('/api/agents');
+  const agents = await res.json();
+  const tiles = document.getElementById('agent-tiles');
+  const empty = document.getElementById('agents-empty');
+
+  if(agents.length===0) { empty.classList.remove('hidden'); tiles.innerHTML=''; return; }
+  empty.classList.add('hidden');
+
+  tiles.innerHTML = agents.map(a => {
+    const name = snakeCase(a.agent_id);
+    const letter = name[0];
+    const pct = a.coverage_pct != null ? a.coverage_pct : null;
+    const bar = pct != null ? coverageBar(pct) : '';
+    const color = pct != null ? coverageColor(pct) : 'muted';
+
+    return `
+      <div onclick="loadAgentRuns('${a.agent_id}')" class="group block min-h-[120px] bg-surface border border-border p-4 hover:bg-surface-hover hover:border-primary transition-colors duration-150 cursor-pointer">
+        <div class="flex items-center gap-3 mb-4 h-8">
+          <div class="w-6 h-6 bg-primary flex items-center justify-center text-[#0A0A0A] font-mono text-xs font-bold">${letter}</div>
+          <h2 class="font-mono text-sm font-bold text-text truncate">${name}</h2>
+        </div>
+        <div class="space-y-1 mb-4">
+          <div class="font-mono text-[11px] font-medium text-muted">TOTAL_RUNS: <span class="text-text">${(a.total_runs||0).toLocaleString()}</span></div>
+          <div class="font-mono text-[11px] font-medium text-muted">LAST_RUN: <span class="text-text">${fmtRelative(a.last_run_timestamp)}</span></div>
+        </div>
+        <div class="mt-auto">
+          ${pct!=null ? `<div class="font-mono text-[11px] font-medium text-${color} group-hover:text-primary transition-colors">[${bar}] ${pct}% COVERAGE</div>
+            <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+              ${(a.coverage_instrumented||[]).map(t => `<span class="font-mono text-[10px] text-success">[✓] ${t}</span>`).join('')}
+              ${(a.coverage_missing||[]).map(t => `<span class="font-mono text-[10px] text-muted">[x] ${t}</span>`).join('')}
+            </div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadAgentRuns(agentId) {
+  currentAgentId = agentId;
+  const res = await fetch('/api/agents');
+  const agents = await res.json();
+  currentAgentData = agents.find(a => a.agent_id === agentId);
+  if(!currentAgentData) return;
+
+  document.getElementById('agents-grid-view').classList.add('hidden');
+  document.getElementById('run-detail-view').classList.add('hidden');
+  document.getElementById('run-list-view').classList.remove('hidden');
+
+  const name = snakeCase(agentId);
+  document.getElementById('rl-avatar').textContent = name[0];
+  document.getElementById('rl-title').textContent = name;
+  document.getElementById('rl-total').textContent = `Total Runs: ${currentAgentData.total_runs}`;
+
+  document.getElementById('run-rows').innerHTML = currentAgentData.runs.map(r => {
+    const hasErr = r.has_errors;
+    const dotColor = hasErr ? 'error' : 'success';
+    return `
+      <div onclick="loadRunDetail('${r.run_id}')" class="group flex items-center justify-between w-full p-4 border-b border-border hover:bg-surface transition-colors cursor-pointer">
+        <div class="flex items-center gap-8 w-1/2">
+          <span class="font-mono text-xs text-text group-hover:text-primary transition-colors">${r.run_id}</span>
+          <span class="text-sm text-muted">${r.tool_call_count} tools</span>
+        </div>
+        <div class="flex items-center justify-end gap-8 w-1/2">
+          <span class="font-mono text-xs text-muted">${fmtTime(r.timestamp)}</span>
+          <div class="flex items-center justify-center w-4 h-4">${glowDot(dotColor)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function backToAgents() {
+  currentAgentId = null;
+  currentAgentData = null;
+  showAgentsGrid();
+  loadAgents();
+}
+
+async function loadRunDetail(runId) {
+  currentRunId = runId;
+  currentRunPage = 1;
+
+  const [dataRes, covRes] = await Promise.all([
+    fetch(`/api/runs/${runId}?page=1&page_size=100`),
+    fetch(`/api/runs/${runId}/coverage`),
+  ]);
+  const data = await dataRes.json();
+  const coverage = await covRes.json();
+  const entries = data.entries || [];
+  hasMorePages = data.has_more || false;
+
+  document.getElementById('agents-grid-view').classList.add('hidden');
+  document.getElementById('run-list-view').classList.add('hidden');
+  document.getElementById('run-detail-view').classList.remove('hidden');
+
+  const agentName = snakeCase(currentAgentId || '');
+  document.getElementById('rd-breadcrumb').textContent = `AGENTS / ${agentName} / ${runId.toUpperCase()}`;
+
+  // Coverage Panel
+  const covEl = document.getElementById('rd-coverage');
+  if(coverage && coverage.total) {
+    const inst = coverage.instrumented || [];
+    const miss = coverage.missing || [];
+    const topBorder = miss.length > 0 ? 'border-t-warning' : 'border-t-success';
+    covEl.innerHTML = `
+      <div class="border border-border border-t-[2px] ${topBorder} p-5 bg-surface">
+        <h2 class="font-mono font-bold text-sm text-text mb-4 uppercase tracking-wider">COVERAGE PANEL</h2>
+        <div class="grid grid-cols-2 gap-y-3 gap-x-8 font-mono text-[13px]">
+          ${inst.map(t => `<div class="flex items-center gap-2 text-text"><span class="text-success">[✓]</span> ${t}</div>`).join('')}
+          ${miss.map(t => `<div class="flex items-center gap-2 text-muted"><span class="text-muted">[x]</span> ${t}</div>`).join('')}
+        </div>
+      </div>`;
+  } else { covEl.innerHTML = ''; }
+
+  // Warning Banner
+  const warnEl = document.getElementById('rd-warnings');
+  const missing = coverage && coverage.missing && coverage.missing.length ? coverage.missing : [];
+  if(missing.length) {
+    warnEl.classList.remove('hidden');
+    warnEl.innerHTML = `
+      <div class="bg-[#291A00] border border-warning p-4 flex items-start gap-3">
+        <span class="material-symbols-outlined text-warning shrink-0" style="font-size:20px">warning</span>
+        <div class="flex flex-col gap-1">
+          <p class="font-mono font-medium text-warning text-[13px] tracking-wide">! ${missing.length} UNINSTRUMENTED TOOLS DETECTED</p>
+          <p class="font-display text-xs text-warning/80">Review agent execution trace to identify missing instrumentation.</p>
+        </div>
+      </div>`;
+  } else { warnEl.classList.add('hidden'); warnEl.innerHTML=''; }
+
+  // Entries
+  document.getElementById('rd-entries').innerHTML = renderTraceEntries(entries, missing);
+  document.getElementById('rd-load-more').classList.toggle('hidden', !hasMorePages);
+}
+
+function renderTraceEntries(entries, missing) {
+  missing = missing || [];
+  return entries.map((e, i) => {
+    const isErr = e.status === 'failure';
+    const isUninstrumented = missing.includes(e.tool_name);
+    const idx = `[${String(i+1).padStart(2,'0')}]`;
+    const args = toolArgs(e);
+    const tileBorder = isErr ? 'border-error' : 'border-border';
+    const summaryBg = isErr ? 'bg-[#2A0808]' : '';
+    const nameColor = isErr ? 'text-error' : isUninstrumented ? 'text-warning' : 'text-text';
+    const idxColor = isErr ? 'text-error' : 'text-muted';
+    const durColor = isErr ? 'text-error' : 'text-muted';
+    const chevronColor = isErr ? 'text-error' : 'text-muted';
+    const uninstrLabel = isUninstrumented ? ' <span class="text-[11px] ml-2 opacity-80 uppercase">[Uninstrumented]</span>' : '';
+
+    const inputJson = JSON.stringify(e.inputs||{}, null, 2);
+    const outputSection = isErr
+      ? `<div class="border-l-2 border-error pl-4">
+           <div class="font-mono text-[11px] text-error mb-2 uppercase tracking-widest">ERROR TRACE</div>
+           <pre class="font-mono text-[13px] text-error whitespace-pre-wrap break-all leading-relaxed p-3 border border-border bg-surface">${e.error || JSON.stringify(e.outputs||{},null,2)}</pre>
+         </div>`
+      : `<div class="border-l-2 border-success pl-4">
+           <div class="font-mono text-[11px] text-muted mb-2 uppercase tracking-widest">OUTPUT</div>
+           <pre class="font-mono text-[13px] text-text whitespace-pre-wrap break-all leading-relaxed p-3 border border-border bg-surface">${JSON.stringify(e.outputs||{},null,2)}</pre>
+         </div>`;
+    const expandBg = isErr ? 'bg-[#1A0505]' : 'bg-[#0A0A0A]';
+    const expandBorderT = isErr ? 'border-t border-error' : 'border-t border-border';
+
+    return `
+      <details class="group border ${tileBorder} bg-surface">
+        <summary class="flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-surface-hover transition-colors list-none ${summaryBg}">
+          <div class="flex items-center gap-3 font-mono text-[13px]">
+            <span class="${idxColor}">${idx}</span>
+            <span class="${nameColor} font-medium">${e.tool_name}(${args})${uninstrLabel}</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="font-mono text-[11px] ${durColor}">${fmtDur(e.duration_ms)}</span>
+            <span class="material-symbols-outlined ${chevronColor} group-open:rotate-180 transition-transform" style="font-size:16px">expand_more</span>
+          </div>
+        </summary>
+        <div class="p-4 ${expandBorderT} flex flex-col gap-4 ${expandBg}">
+          <div class="border-l-2 border-primary pl-4">
+            <div class="font-mono text-[11px] text-muted mb-2 uppercase tracking-widest">INPUT</div>
+            <pre class="font-mono text-[13px] text-text whitespace-pre-wrap break-all leading-relaxed p-3 border border-border bg-surface">${inputJson}</pre>
+          </div>
+          ${outputSection}
+        </div>
+      </details>`;
+  }).join('');
+}
+
+function backToRunList() {
+  document.getElementById('run-detail-view').classList.add('hidden');
+  if(currentAgentId) {
+    document.getElementById('run-list-view').classList.remove('hidden');
+  } else { backToAgents(); }
+}
+
+async function loadMoreEntries() {
+  if(!currentRunId || !hasMorePages) return;
+  currentRunPage++;
+  const res = await fetch(`/api/runs/${currentRunId}?page=${currentRunPage}&page_size=100`);
+  const data = await res.json();
+  hasMorePages = data.has_more || false;
+  document.getElementById('rd-entries').insertAdjacentHTML('beforeend', renderTraceEntries(data.entries||[]));
+  document.getElementById('rd-load-more').classList.toggle('hidden', !hasMorePages);
+}
+
+// ═══════════════════════════════════════
+// TAB 3: PENDING APPROVALS
+// ═══════════════════════════════════════
+async function loadApprovals() {
+  const [pRes, hRes] = await Promise.all([fetch('/api/approvals'), fetch('/api/approvals/history')]);
+  approvals = await pRes.json();
+  const history = await hRes.json();
+  updateApprovalBadge();
+  renderApprovals();
+  renderApprovalHistory(history);
+}
+
+function updateApprovalBadge() {
+  const badge = document.getElementById('approval-badge');
+  if(approvals.length>0) { badge.textContent=approvals.length; badge.classList.remove('hidden'); }
+  else badge.classList.add('hidden');
+}
+
+function renderApprovals() {
+  const container = document.getElementById('approval-list');
+  const empty = document.getElementById('approvals-empty');
+  if(approvals.length===0) { empty.classList.remove('hidden'); container.innerHTML=''; return; }
+  empty.classList.add('hidden');
+
+  container.innerHTML = approvals.map(a => `
+    <div class="bg-surface border border-border p-4">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <p class="font-mono text-sm font-bold text-text">${a.tool_name||'UNKNOWN'}</p>
+          ${a.skill_context ? `<p class="font-mono text-[11px] text-muted mt-1">SKILL: ${a.skill_context}</p>` : ''}
+          ${a.agent_id ? `<p class="font-mono text-[11px] text-muted">AGENT: ${snakeCase(a.agent_id)}</p>` : ''}
+        </div>
+        <span class="font-mono text-[11px] text-warning font-medium">⏳ AWAITING_REVIEW</span>
+      </div>
+      <div class="mb-4">
+        <div class="font-mono text-[11px] text-muted uppercase tracking-widest mb-2">INPUT</div>
+        <pre class="font-mono text-[12px] text-text bg-[#0A0A0A] border border-border p-3 whitespace-pre-wrap break-all">${JSON.stringify(a.inputs||{},null,2)}</pre>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="handleApproval('${a.id}','approve')" class="px-4 py-2 border border-primary bg-transparent text-primary hover:bg-primary hover:text-[#0A0A0A] font-mono text-[12px] font-medium uppercase tracking-wide transition-colors">APPROVE</button>
+        <button onclick="handleApproval('${a.id}','reject')" class="px-4 py-2 border border-error bg-transparent text-error hover:bg-error hover:text-[#0A0A0A] font-mono text-[12px] font-medium uppercase tracking-wide transition-colors">REJECT</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderApprovalHistory(history) {
+  const section = document.getElementById('approval-history-section');
+  const container = document.getElementById('approval-history');
+  if(history.length===0) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+
+  container.innerHTML = history.map(h => {
+    const isApproved = h.decision==='approved';
+    const badge = isApproved
+      ? '<span class="font-mono text-[11px] text-success font-medium">✓ APPROVED</span>'
+      : '<span class="font-mono text-[11px] text-error font-medium">✗ REJECTED</span>';
+    return `
+      <div class="flex items-center justify-between p-4 border-b border-border hover:bg-surface transition-colors">
+        <span class="font-mono text-xs text-text">${h.tool_name}</span>
+        ${badge}
+        <span class="font-mono text-xs text-muted">${fmtTime(h.timestamp)}</span>
+      </div>`;
+  }).join('');
+}
+
+async function handleApproval(id, action) {
+  await fetch(`/api/approvals/${id}/${action}`, {method:'POST'});
+  approvals = approvals.filter(a => a.id !== id);
+  updateApprovalBadge();
+  renderApprovals();
+  const hRes = await fetch('/api/approvals/history');
+  renderApprovalHistory(await hRes.json());
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+startSSE();
+</script>
+</body>
+</html>
