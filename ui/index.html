@@ -196,6 +196,62 @@ function toolArgs(entry) {
   return args;
 }
 
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderInputValue(v, depth) {
+  depth = depth || 0;
+  const pad = depth > 0 ? `style="margin-left:${depth * 12}px"` : '';
+
+  if (v === null || v === undefined) {
+    return `<span class="font-mono text-[12px] text-muted italic">null</span>`;
+  }
+  if (typeof v === 'boolean') {
+    const cls = v ? 'text-success' : 'text-muted';
+    const label = v ? 'true' : 'false';
+    return `<span class="font-mono text-[11px] ${cls} border border-border px-1.5 py-0.5">${label}</span>`;
+  }
+  if (typeof v === 'number') {
+    const formatted = Math.abs(v) >= 1000 ? v.toLocaleString() : String(v);
+    return `<span class="font-mono text-[12px] text-primary">${escapeHtml(formatted)}</span>`;
+  }
+  if (typeof v === 'string') {
+    if (v.length >= 200) {
+      const preview = v.slice(0, 100);
+      return `<div class="font-mono text-[12px] text-text">
+        <span class="text-muted">string (${v.length.toLocaleString()} chars):</span>
+        <pre class="mt-1 bg-[#0A0A0A] border border-border p-2 whitespace-pre-wrap break-all text-[11px]">${escapeHtml(preview)}…</pre>
+      </div>`;
+    }
+    if (/\//.test(v) && !/\s/.test(v)) {
+      return `<span class="font-mono text-[12px] text-text bg-[#0A0A0A] border border-border px-1.5 py-0.5">${escapeHtml(v)}</span>`;
+    }
+    return `<span class="font-mono text-[12px] text-text">${escapeHtml(v)}</span>`;
+  }
+  if (Array.isArray(v)) {
+    if (v.length === 0) return `<span class="font-mono text-[12px] text-muted">[]</span>`;
+    const items = v.map((item, i) =>
+      `<div ${pad}><span class="font-mono text-[11px] text-muted">[${i}]</span> ${renderInputValue(item, depth + 1)}</div>`
+    ).join('');
+    return `<div>${items}</div>`;
+  }
+  if (typeof v === 'object') {
+    const keys = Object.keys(v);
+    if (keys.length === 0) return `<span class="font-mono text-[12px] text-muted">{}</span>`;
+    const rows = keys.map(k =>
+      `<div ${pad}><span class="font-mono text-[11px] text-muted">${escapeHtml(k)}:</span> ${renderInputValue(v[k], depth + 1)}</div>`
+    ).join('');
+    return `<div>${rows}</div>`;
+  }
+  return `<span class="font-mono text-[12px] text-text">${escapeHtml(String(v))}</span>`;
+}
+
 // ═══════════════════════════════════════
 // TABS
 // ═══════════════════════════════════════
@@ -636,7 +692,17 @@ function renderApprovals() {
       </div>
       <div class="mb-4">
         <div class="font-mono text-[11px] text-muted uppercase tracking-widest mb-2">INPUT</div>
-        <pre class="font-mono text-[12px] text-text bg-[#0A0A0A] border border-border p-3 whitespace-pre-wrap break-all">${JSON.stringify(a.inputs||{},null,2)}</pre>
+        <div class="bg-[#0A0A0A] border border-border p-3 flex flex-col gap-2">
+          ${Object.keys(a.inputs||{}).length === 0
+            ? '<span class="font-mono text-[12px] text-muted">(no inputs)</span>'
+            : Object.entries(a.inputs||{}).map(([k, v]) => `
+                <div class="flex flex-col gap-1">
+                  <div class="font-mono text-[11px] text-muted uppercase tracking-wide">${escapeHtml(k)}</div>
+                  <div>${renderInputValue(v)}</div>
+                </div>
+              `).join('')
+          }
+        </div>
       </div>
       <div class="flex gap-3">
         <button onclick="handleApproval('${a.id}','approve')" class="px-4 py-2 border border-primary bg-transparent text-primary hover:bg-primary hover:text-[#0A0A0A] font-mono text-[12px] font-medium uppercase tracking-wide transition-colors">APPROVE</button>

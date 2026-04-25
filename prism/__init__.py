@@ -29,6 +29,16 @@ _active_tool: str | None = None
 _tool_call_count: int = 0
 
 
+def _serialize_inputs(inputs: dict) -> dict:
+    """Serialize tool inputs for the approval API, preserving JSON-native types.
+
+    Booleans, numbers, lists, dicts, and strings round-trip as themselves.
+    Non-JSON-serializable values (datetime, Path, custom classes) are coerced
+    to strings via str(). This matches the log-write path's behavior.
+    """
+    return json.loads(json.dumps(inputs, default=str))
+
+
 def _post_json(path: str, data: dict, timeout: int = 5) -> dict | None:
     """POST JSON to the UI server. Returns parsed response or None on failure."""
     try:
@@ -184,7 +194,7 @@ def watch(fn=None, *, skill: str | None = None):
                     "tool_name": tool_name,
                     "skill_context": skill,
                     "agent_id": _config["agent_id"],
-                    "inputs": {k: str(v) for k, v in inputs.items()},
+                    "inputs": _serialize_inputs(inputs),
                 }, timeout=600)
                 if result is not None:
                     approved = result.get("status") == "approved"
