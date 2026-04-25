@@ -287,7 +287,7 @@ def coverage(all_tools: list[str] | None = None) -> dict:
     pct = int(count / total * 100) if total > 0 else 0
 
     agent_id = _config["agent_id"]
-    print(f"\nPrism Coverage Report — {agent_id}")
+    print(f"\nPrism Coverage Report: {agent_id}")
     print("-" * 48)
     print(f"Instrumented:   {count} / {total} tools ({pct}%)\n")
     for t in instrumented:
