@@ -252,6 +252,18 @@ function renderInputValue(v, depth) {
   return `<span class="font-mono text-[12px] text-text">${escapeHtml(String(v))}</span>`;
 }
 
+function truncate(s, n) {
+  s = String(s || '');
+  return s.length <= n ? s : s.slice(0, n - 1) + '…';
+}
+
+function statusIndicator(status) {
+  if (status === 'success') return `<span class="font-mono text-[12px] text-success" title="success">✓</span>`;
+  if (status === 'failure') return `<span class="font-mono text-[12px] text-error" title="failure">✗</span>`;
+  if (status === 'rejected') return `<span class="font-mono text-[12px] text-warning" title="rejected">⊘</span>`;
+  return `<span class="font-mono text-[12px] text-muted">·</span>`;
+}
+
 // ═══════════════════════════════════════
 // TABS
 // ═══════════════════════════════════════
@@ -680,16 +692,47 @@ function renderApprovals() {
   if(approvals.length===0) { empty.classList.remove('hidden'); container.innerHTML=''; return; }
   empty.classList.add('hidden');
 
-  container.innerHTML = approvals.map(a => `
-    <div class="bg-surface border border-border p-4">
-      <div class="flex items-start justify-between mb-3">
-        <div>
-          <p class="font-mono text-sm font-bold text-text">${a.tool_name||'UNKNOWN'}</p>
-          ${a.skill_context ? `<p class="font-mono text-[11px] text-muted mt-1">SKILL: ${a.skill_context}</p>` : ''}
-          ${a.agent_id ? `<p class="font-mono text-[11px] text-muted">AGENT: ${snakeCase(a.agent_id)}</p>` : ''}
-        </div>
-        <span class="font-mono text-[11px] text-warning font-medium">⏳ AWAITING_REVIEW</span>
-      </div>
+  container.innerHTML = approvals.map(a => {
+    const runShort = (a.run_id || '').slice(-8);
+    const ctxParts = [];
+    if (a.agent_id)      ctxParts.push(`<span class="text-text">${escapeHtml(snakeCase(a.agent_id))}</span>`);
+    if (runShort)        ctxParts.push(`run: <span class="text-text">${escapeHtml(runShort)}</span>`);
+    if (a.skill_context) ctxParts.push(`skill: <span class="text-text">${escapeHtml(a.skill_context)}</span>`);
+    if (typeof a.tool_count === 'number') ctxParts.push(`<span class="text-text">${a.tool_count.toLocaleString()}</span> tool calls so far`);
+
+    const purpose = (a.tool_purpose || '').trim();
+    const purposeHtml = purpose
+      ? `<div class="mb-4">
+           <div class="font-mono text-[11px] text-muted uppercase tracking-widest mb-2">WHAT THIS TOOL DOES</div>
+           <p class="font-display text-[12px] text-text leading-relaxed">${escapeHtml(truncate(purpose, 240))}</p>
+         </div>`
+      : '';
+
+    const recent = Array.isArray(a.recent_calls) ? a.recent_calls : [];
+    const recentHtml = recent.length === 0
+      ? ''
+      : `<div class="mb-4">
+           <div class="font-mono text-[11px] text-muted uppercase tracking-widest mb-2">RECENT ACTIVITY</div>
+           <div class="bg-[#0A0A0A] border border-border p-3 flex flex-col gap-1">
+             ${recent.map(r => `
+               <div class="flex items-center justify-between gap-3 font-mono text-[12px]">
+                 <div class="flex items-center gap-2 min-w-0">
+                   ${statusIndicator(r.status)}
+                   <span class="text-text font-medium shrink-0">${escapeHtml(r.tool_name || '')}</span>
+                   <span class="text-muted truncate">${escapeHtml(r.inputs_preview || '')}</span>
+                 </div>
+                 <span class="text-muted shrink-0">${fmtDur(r.duration_ms || 0)}</span>
+               </div>
+             `).join('')}
+           </div>
+         </div>`;
+
+    const trigger = a.trigger_reason || '';
+    const triggerHtml = trigger
+      ? `<div class="mb-3 font-mono text-[11px] text-muted italic">Approval required: ${escapeHtml(trigger)}</div>`
+      : '';
+
+    const inputsHtml = `
       <div class="mb-4">
         <div class="font-mono text-[11px] text-muted uppercase tracking-widest mb-2">INPUT</div>
         <div class="bg-[#0A0A0A] border border-border p-3 flex flex-col gap-2">
@@ -703,13 +746,28 @@ function renderApprovals() {
               `).join('')
           }
         </div>
+      </div>`;
+
+    return `
+      <div class="bg-surface border border-border p-4">
+        <div class="flex items-start justify-between mb-2">
+          <p class="font-mono text-sm font-bold text-text">${escapeHtml(a.tool_name || 'UNKNOWN')}</p>
+          <span class="font-mono text-[11px] text-warning font-medium">⏳ AWAITING_REVIEW</span>
+        </div>
+        ${ctxParts.length
+          ? `<p class="font-mono text-[11px] text-muted mb-3">${ctxParts.join(' · ')}</p>`
+          : ''}
+        ${triggerHtml}
+        ${purposeHtml}
+        ${recentHtml}
+        ${inputsHtml}
+        <div class="flex gap-3">
+          <button onclick="handleApproval('${a.id}','approve')" class="px-4 py-2 border border-primary bg-transparent text-primary hover:bg-primary hover:text-[#0A0A0A] font-mono text-[12px] font-medium uppercase tracking-wide transition-colors">APPROVE</button>
+          <button onclick="handleApproval('${a.id}','reject')" class="px-4 py-2 border border-error bg-transparent text-error hover:bg-error hover:text-[#0A0A0A] font-mono text-[12px] font-medium uppercase tracking-wide transition-colors">REJECT</button>
+        </div>
       </div>
-      <div class="flex gap-3">
-        <button onclick="handleApproval('${a.id}','approve')" class="px-4 py-2 border border-primary bg-transparent text-primary hover:bg-primary hover:text-[#0A0A0A] font-mono text-[12px] font-medium uppercase tracking-wide transition-colors">APPROVE</button>
-        <button onclick="handleApproval('${a.id}','reject')" class="px-4 py-2 border border-error bg-transparent text-error hover:bg-error hover:text-[#0A0A0A] font-mono text-[12px] font-medium uppercase tracking-wide transition-colors">REJECT</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function renderApprovalHistory(history) {

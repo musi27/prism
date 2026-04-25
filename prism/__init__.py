@@ -6,6 +6,7 @@ import signal
 import threading
 import urllib.request
 import uuid
+from collections import deque
 from datetime import datetime, timezone
 
 from prism.spec import ToolCallEntry, write_log_entry
@@ -28,6 +29,12 @@ _heartbeat_timer: threading.Timer | None = None
 _active_tool: str | None = None
 _tool_call_count: int = 0
 
+# Tool docstrings captured at decoration time; keyed by tool_name.
+_tool_docs: dict[str, str] = {}
+
+# Bounded buffer of recent tool calls in the current run. Cleared on configure().
+_recent_calls: deque = deque(maxlen=5)
+
 
 def _serialize_inputs(inputs: dict) -> dict:
     """Serialize tool inputs for the approval API, preserving JSON-native types.
@@ -37,6 +44,35 @@ def _serialize_inputs(inputs: dict) -> dict:
     to strings via str(). This matches the log-write path's behavior.
     """
     return json.loads(json.dumps(inputs, default=str))
+
+
+def _input_preview(inputs: dict) -> str:
+    """Compact one-line preview of inputs for the recent-call buffer.
+
+    Values are first round-tripped through _serialize_inputs so non-JSON
+    types are coerced via str(), then JSON-encoded and truncated to 60
+    chars with an ellipsis. Intended for glanceable summaries, not full logs.
+    """
+    serialized = _serialize_inputs(inputs)
+    text = json.dumps(serialized, default=str)
+    return text if len(text) <= 60 else text[:60] + "..."
+
+
+def _record_recent_call(
+    tool_name: str,
+    inputs: dict,
+    status: str,
+    duration_ms: float,
+    timestamp_end: str,
+) -> None:
+    """Append an entry to the bounded recent-call buffer."""
+    _recent_calls.append({
+        "tool_name": tool_name,
+        "inputs_preview": _input_preview(inputs),
+        "status": status,
+        "duration_ms": duration_ms,
+        "timestamp_end": timestamp_end,
+    })
 
 
 def _post_json(path: str, data: dict, timeout: int = 5) -> dict | None:
@@ -112,6 +148,7 @@ def configure(
     _config["run_id"] = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
     _complete_called = False
     _tool_call_count = 0
+    _recent_calls.clear()
 
     # Resolve full tool list for coverage
     if tools is not None:
@@ -173,6 +210,8 @@ def watch(fn=None, *, skill: str | None = None):
     """
     def decorator(func):
         _watched_tools.add(func.__name__)
+        if func.__doc__:
+            _tool_docs[func.__name__] = func.__doc__.strip()
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -195,6 +234,11 @@ def watch(fn=None, *, skill: str | None = None):
                     "skill_context": skill,
                     "agent_id": _config["agent_id"],
                     "inputs": _serialize_inputs(inputs),
+                    "run_id": _config["run_id"] or "no_run",
+                    "tool_count": _tool_call_count,
+                    "tool_purpose": _tool_docs.get(tool_name, ""),
+                    "recent_calls": list(_recent_calls),
+                    "trigger_reason": "This tool is in your require_approval_for list",
                 }, timeout=600)
                 if result is not None:
                     approved = result.get("status") == "approved"
@@ -219,6 +263,13 @@ def watch(fn=None, *, skill: str | None = None):
                         error="Rejected by human reviewer",
                     )
                     write_log_entry(entry, _config["log_path"])
+                    _record_recent_call(
+                        tool_name,
+                        inputs,
+                        "rejected",
+                        0,
+                        datetime.now(timezone.utc).isoformat(),
+                    )
                     raise PermissionError(f"Tool '{tool_name}' was rejected by reviewer.")
 
             # Execute and log
@@ -243,6 +294,7 @@ def watch(fn=None, *, skill: str | None = None):
                     error=None,
                 )
                 write_log_entry(entry, _config["log_path"])
+                _record_recent_call(tool_name, inputs, "success", duration_ms, end.isoformat())
                 _tool_call_count += 1
                 return result
 
@@ -266,6 +318,7 @@ def watch(fn=None, *, skill: str | None = None):
                     error=str(e),
                 )
                 write_log_entry(entry, _config["log_path"])
+                _record_recent_call(tool_name, inputs, "failure", duration_ms, end.isoformat())
                 _tool_call_count += 1
                 raise
             finally:
