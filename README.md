@@ -231,37 +231,7 @@ A warning badge also appears on the agent tile in the UI.
 
 ## Log Schema
 
-Every tool call produces a JSON log entry:
-
-```json
-{
-  "agent_id": "my-agent-v1",
-  "run_id": "run_20240408_001",
-  "timestamp_start": "2024-04-08T10:23:11Z",
-  "timestamp_end": "2024-04-08T10:23:14Z",
-  "duration_ms": 3012,
-  "tool_name": "fetch_data",
-  "skill_context": null,
-  "inputs": { "query": "example input" },
-  "outputs": { "results": ["..."] },
-  "status": "success",
-  "error": null
-}
-```
-
-- **agent_id**: unique identifier for the agent instance
-- **run_id**: unique identifier for this execution run
-- **timestamp_start**: when the tool call began (ISO 8601)
-- **timestamp_end**: when the tool call completed (ISO 8601)
-- **duration_ms**: how long the call took in milliseconds
-- **tool_name**: name of the tool that was called
-- **skill_context**: optional name of the higher-level skill this tool call belongs to
-- **inputs**: the arguments passed to the tool
-- **outputs**: the return value of the tool
-- **status**: `success` or `failure`
-- **error**: error message if the call failed, `null` otherwise
-
-Log files are written to `logs/` as JSONL (one entry per line) and rotate automatically.
+Every tool call produces a JSON log entry with structured fields (agent ID, run ID, timestamps, duration, tool name, inputs, outputs, status, error, etc.). The full schema, rotation rules, and serialization behavior are documented in [SPEC.md](./SPEC.md). SPEC.md also documents the HTTP API endpoints used between the SDK and the UI server, so any HTTP-capable language can integrate with Prism.
 
 ## Today and Tomorrow
 
@@ -270,7 +240,8 @@ These are deliberate deferrals, not oversights:
 - Long-term memory observation
 - Agent state capture
 - Multi-agent and orchestration oversight
-- Support for languages other than Python
+
+Today the SDK is Python. A TypeScript SDK at parity with Python is on the roadmap as the next major piece of work, because the wedge (agents that write, send, or execute) applies identically to TS agents. The HTTP API and JSON log format are language-agnostic by design, so any HTTP-capable language can integrate with the same UI server.
 
 Today Prism runs on a single machine. The durable identity is data sovereignty: your agent's logs, approvals, and run history stay on infrastructure you control. Self-hostable aggregation across machines (so the reviewer can be on a different device than the agent, and production agents don't have to run on a laptop) is on the roadmap. A Prism-hosted SaaS is not.
 
