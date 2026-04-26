@@ -158,7 +158,7 @@ This works for both on-demand agents (run once and finish) and continuous agents
 
 ## The UI
 
-Open `http://localhost:4242` after starting `python3 serve.py`. The UI has three views:
+Open the UI URL printed when you start `python3 serve.py` — by default `http://localhost:4242`. The UI has three views:
 
 **Live Feed.** Shows agents that are currently running, each as a tile with its name, status (active, idle, or complete), and a live tool call count. Click a tile to see the last 50 tool calls as they happen. When an agent finishes, its tile disappears.
 
