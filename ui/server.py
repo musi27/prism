@@ -388,10 +388,6 @@ async def reject(approval_id: str):
     return {"status": "rejected"}
 
 
-def main():
-    print("Prism UI running at http://localhost:4242")
-    uvicorn.run(app, host="127.0.0.1", port=4242, log_level="warning")
-
-
-if __name__ == "__main__":
-    main()
+def main(host: str, port: int) -> None:
+    print(f"Prism UI running at http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port, log_level="warning")

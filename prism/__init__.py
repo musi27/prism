@@ -2,6 +2,7 @@ import atexit
 import functools
 import inspect
 import json
+import os
 import signal
 import threading
 import urllib.request
@@ -11,7 +12,11 @@ from datetime import datetime, timezone
 
 from prism.spec import ToolCallEntry, write_log_entry
 
-PRISM_UI_URL = "http://localhost:4242"
+def _get_ui_url() -> str:
+    """Resolve the UI URL from env vars, falling back to localhost:4242."""
+    host = os.environ.get("PRISM_UI_HOST") or "localhost"
+    port = os.environ.get("PRISM_UI_PORT") or "4242"
+    return f"http://{host}:{port}"
 
 # Global configuration
 _config = {
@@ -80,7 +85,7 @@ def _post_json(path: str, data: dict, timeout: int = 5) -> dict | None:
     try:
         payload = json.dumps(data).encode()
         req = urllib.request.Request(
-            f"{PRISM_UI_URL}{path}",
+            f"{_get_ui_url()}{path}",
             data=payload,
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -226,7 +231,7 @@ def watch(fn=None, *, skill: str | None = None):
 
             # Check approval via UI server
             if tool_name in _config["require_approval_for"]:
-                print(f"  [Prism] Waiting for approval: {tool_name} — check {PRISM_UI_URL}")
+                print(f"  [Prism] Waiting for approval: {tool_name} — check {_get_ui_url()}")
                 approval_id = uuid.uuid4().hex[:12]
                 result = _post_json("/api/approvals", {
                     "id": approval_id,
@@ -337,8 +342,6 @@ def coverage(all_tools: list[str] | None = None) -> dict:
     Typically called automatically by prism.complete(). Can also be called
     manually. If all_tools is not passed, uses the tools list from configure().
     """
-    import os
-
     watched = sorted(_watched_tools)
     resolved = all_tools or _config.get("tools")
     all_t = sorted(set(resolved)) if resolved else watched
