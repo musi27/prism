@@ -50,6 +50,8 @@ python3 serve.py
 
 Then open `http://localhost:4242` in your browser.
 
+To bind a different host or port, pass `--host` / `--port`, or set `PRISM_UI_HOST` / `PRISM_UI_PORT`. The same env vars are read by the SDK, so a single `export PRISM_UI_PORT=5050` reaches both the UI server and any agents started in the same shell.
+
 Three working example agents are included in `agent/` if you want to see Prism running before integrating it into your own code. You'll need an Anthropic API key. Set it with `export ANTHROPIC_API_KEY=sk-ant-your-key-here` before running any agent.
 
 ## Agent Integration
